@@ -16,33 +16,44 @@ namespace FortnitePorting.Exports.Types;
 
 public class DanceExportData : ExportDataBase
 {
-    public string Animation;
-    public string Skeleton;
-    public List<EmotePropData> Props = new();
+    public AnimationData AnimData = new();
+
     public static async Task<DanceExportData> Create(UObject asset)
     {
         var data = new DanceExportData();
         data.Name = asset.GetOrDefault("DisplayName", new FText("Unnamed")).Text;
         data.Type = EAssetType.Dance.ToString();
+        data.AnimData = await CreateAnimDataAsync(asset.Get<UAnimMontage>("Animation"));
+
+        await Task.WhenAll(ExportHelpers.Tasks);
+        return data;
+    }
+
+    public static async Task<AnimationData> CreateAnimDataAsync(UAnimMontage montage)
+    {
+        var animData = new AnimationData();
         await Task.Run(() =>
         {
-            var montage = asset.Get<UAnimMontage>("Animation");
-
             var masterSkeleton = montage.Get<USkeleton>("Skeleton");
             ExportHelpers.Save(masterSkeleton);
-            data.Skeleton = masterSkeleton.GetPathName();
+            animData.Skeleton = masterSkeleton.GetPathName();
 
             var animation = GetExportSequence(montage);
             ExportHelpers.Save(animation);
-            data.Animation = animation.GetPathName();
+            animData.Animation = animation.GetPathName();
 
-            var notifies = montage.Get<FStructFallback[]>("Notifies");
-            var propNotifies = notifies.Where(x =>
+            var montageNotifies = montage.GetOrDefault("Notifies", Array.Empty<FStructFallback>());
+            var animNotifies = animation.GetOrDefault("Notifies", Array.Empty<FStructFallback>());
+
+            var allNotifies = new List<FStructFallback>();
+            allNotifies.AddRange(montageNotifies);
+            allNotifies.AddRange(animNotifies);
+            var propNotifies = allNotifies.Where(x =>
             {
                 var notifyName = x.GetOrDefault<FName>("NotifyName").Text;
                 return notifyName.Contains("FortSpawnProp") || notifyName.Contains("Fort Anim Notify State Spawn Prop");
             });
-            
+
             foreach (var propNotify in propNotifies)
             {
                 /*var linkedSequence = propNotify.Get<UAnimSequence>("LinkedSequence");
@@ -56,8 +67,7 @@ public class DanceExportData : ExportDataBase
                     Scale = notifyData.Scale,
                     Prop = ExportHelpers.Mesh(notifyData.StaticMeshProp) ?? ExportHelpers.Mesh(notifyData.SkeletalMeshProp)
                 };
-                
-                
+
                 var propAnimation = notifyData.SkeletalMeshPropAnimation;
                 propAnimation ??= GetExportSequence(notifyData.SkeletalMeshPropMontage);
                 if (propAnimation is not null)
@@ -65,14 +75,14 @@ public class DanceExportData : ExportDataBase
                     ExportHelpers.Save(propAnimation);
                     exportProp.Animation = propAnimation.GetPathName();
                 }
-                
-                data.Props.Add(exportProp);
+
+                animData.Props.Add(exportProp);
             }
         });
 
-        await Task.WhenAll(ExportHelpers.Tasks);
-        return data;
+        return animData;
     }
+
 
     public static UAnimSequence? GetExportSequence(UAnimMontage? montage)
     {
@@ -107,19 +117,19 @@ public class FortAnimNotifyState_SpawnProp : UObject
     public FRotator RotationOffset { get; private set; }
     public FVector Scale { get; private set; }
     public bool bInheritScale { get; private set; }
-    public UStaticMesh? StaticMeshProp { get; private set; }   
+    public UStaticMesh? StaticMeshProp { get; private set; }
     public USkeletalMesh? SkeletalMeshProp { get; private set; }
     public UAnimSequence? SkeletalMeshPropAnimation { get; private set; }
     public UAnimMontage? SkeletalMeshPropMontage { get; private set; }
-    
+
     public override void Deserialize(FAssetArchive Ar, long validPos)
     {
         base.Deserialize(Ar, validPos);
 
         SocketName = GetOrDefault<FName>(nameof(SocketName));
-        LocationOffset = GetOrDefault<FVector>(nameof(LocationOffset), FVector.ZeroVector);
-        RotationOffset = GetOrDefault<FRotator>(nameof(RotationOffset), FRotator.ZeroRotator);
-        Scale = GetOrDefault<FVector>(nameof(Scale), FVector.OneVector);
+        LocationOffset = GetOrDefault(nameof(LocationOffset), FVector.ZeroVector);
+        RotationOffset = GetOrDefault(nameof(RotationOffset), FRotator.ZeroRotator);
+        Scale = GetOrDefault(nameof(Scale), FVector.OneVector);
         bInheritScale = GetOrDefault<bool>(nameof(bInheritScale));
         StaticMeshProp = GetOrDefault<UStaticMesh>(nameof(StaticMeshProp));
         SkeletalMeshProp = GetOrDefault<USkeletalMesh>(nameof(SkeletalMeshProp));

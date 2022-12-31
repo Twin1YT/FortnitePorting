@@ -6,8 +6,8 @@ namespace FortnitePorting;
 
 public static class Globals
 {
-    public const string VERSION = "1.0.2";
-    
+    public const string VERSION = "1.0.5";
+
     public const string DISCORD_URL = "https://discord.gg/DZ5YFXdBA6";
     public const string GITHUB_URL = "https://github.com/halfuwu/FortnitePorting";
     public const string KOFI_URL = "https://ko-fi.com/halfuwu";
@@ -16,13 +16,13 @@ public static class Globals
     public const int BLENDER_PORT = 24280;
     public const int UNREAL_PORT = 24281;
     public const int BUFFER_SIZE = 4096;
-    
+
     public const string UDPClient_MessageTerminator = "FPClientMessageFinished";
     public const string UDPClient_ServerCheck = "FPClientCheckServer";
     public const string UDPServer_ResponseReceived = "FPServerReceived";
-    
 
     public const string WHITE = "#e1e9f2";
+    public const string BLACK = "#000000";
     public const string BLUE = "#4b8ad1";
     public const string RED = "#d14b68";
     public const string YELLOW = "#d1c84b";

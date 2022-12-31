@@ -1,10 +1,10 @@
 ﻿using System;
 using System.ComponentModel;
 using System.Linq;
-using System.Threading.Tasks;
 using System.Windows;
 using System.Windows.Controls;
 using System.Windows.Input;
+using System.Windows.Media.Imaging;
 using CUE4Parse.UE4.Assets.Exports;
 using CUE4Parse.UE4.Assets.Objects;
 using CUE4Parse.UE4.Objects.Core.i18N;
@@ -26,8 +26,9 @@ public partial class MainView
         AppVM.MainVM = new MainViewModel();
         DataContext = AppVM.MainVM;
 
-        AppLog.Logger = LoggerRtb;
+        AppLog.Logger = LoggerBox;
         Title = $"Fortnite Porting - v{Globals.VERSION}";
+        Icon = new BitmapImage(new Uri(AppSettings.Current.LightMode ? "pack://application:,,,/FortnitePorting-Dark.ico" : "pack://application:,,,/FortnitePorting.ico", UriKind.RelativeOrAbsolute));
         YesWeDogs = this;
     }
 
@@ -38,7 +39,7 @@ public partial class MainView
             AppHelper.OpenWindow<StartupView>();
             return;
         }
-        
+
         if (DateTime.Now >= AppSettings.Current.LastUpdateAskTime.AddDays(1))
         {
             UpdateService.Start(automaticCheck: true);
@@ -50,7 +51,7 @@ public partial class MainView
             AppHelper.OpenWindow<PluginUpdateView>();
             AppSettings.Current.JustUpdated = false;
         }
-        
+
         await AppVM.MainVM.Initialize();
     }
 
@@ -58,7 +59,7 @@ public partial class MainView
     {
         if (sender is not TabControl tabControl) return;
         if (AppVM.AssetHandlerVM is null) return;
-        
+
         var assetType = (EAssetType) tabControl.SelectedIndex;
 
         if (AppVM.MainVM.CurrentAssetType == assetType) return;
@@ -74,12 +75,12 @@ public partial class MainView
                 handlerData.PauseState.Pause();
             }
         }
-        
+
         if (!handlers[assetType].HasStarted)
         {
             await handlers[assetType].Execute();
         }
-        
+
         DiscordService.Update(assetType);
         AppVM.MainVM.CurrentAssetType = assetType;
         AppVM.MainVM.ExtendedAssets.Clear();
@@ -90,27 +91,29 @@ public partial class MainView
         if (sender is not ListBox listBox) return;
         if (listBox.SelectedItem is null) return;
         var selected = (AssetSelectorItem) listBox.SelectedItem;
-        
+
         AppVM.MainVM.Styles.Clear();
         if (selected.Type == EAssetType.Prop)
         {
             AppVM.MainVM.TabModeText = "SELECTED ASSETS";
             if (listBox.SelectedItems.Count == 0) return;
             AppVM.MainVM.CurrentAsset = selected;
+            AppVM.MainVM.ExtendedAssets.Clear();
             AppVM.MainVM.ExtendedAssets = listBox.SelectedItems.OfType<AssetSelectorItem>().ToList();
             AppVM.MainVM.Styles.Add(new StyleSelector(AppVM.MainVM.ExtendedAssets));
             return;
         }
-        
+
         if (selected.IsRandom)
         {
             listBox.SelectedIndex = App.RandomGenerator.Next(0, listBox.Items.Count);
             return;
         }
-        
+
+        AppVM.MainVM.ExtendedAssets.Clear();
         AppVM.MainVM.CurrentAsset = selected;
         AppVM.MainVM.TabModeText = "STYLES";
-        
+
         var styles = selected.Asset.GetOrDefault("ItemVariants", Array.Empty<UObject>());
         foreach (var style in styles)
         {
@@ -123,18 +126,18 @@ public partial class MainView
                 "FortCosmeticMeshVariant" => "MeshOptions",
                 _ => null
             };
-            
+
             if (optionsName is null) continue;
 
             var options = style.Get<FStructFallback[]>(optionsName);
             if (options.Length == 0) continue;
-            
+
             var styleSelector = new StyleSelector(channel, options, selected.IconBitmap);
             if (styleSelector.Options.Items.Count == 0) continue;
             AppVM.MainVM.Styles.Add(styleSelector);
         }
     }
-    
+
     private void StupidIdiotBadScroll(object sender, MouseWheelEventArgs e)
     {
         if (sender is not ScrollViewer scrollViewer) return;

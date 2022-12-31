@@ -13,7 +13,7 @@ from io_import_scene_unreal_psa_psk_280 import pskimport, psaimport
 bl_info = {
     "name": "Fortnite Porting",
     "author": "Half",
-    "version": (1, 0, 2),
+    "version": (1, 0, 5),
     "blender": (3, 0, 0),
     "description": "Blender Server for Fortnite Porting",
     "category": "Import",
@@ -149,16 +149,16 @@ vector_mappings = {
 }
 
 
-def import_mesh(path: str, import_mesh: bool = True, reorient_bones: bool = False) -> bpy.types.Object:
+def import_mesh(path: str, import_mesh: bool = True, reorient_bones: bool = False, lod = 0) -> bpy.types.Object:
     path = path[1:] if path.startswith("/") else path
-    mesh_path = os.path.join(import_assets_root, path.split(".")[0] + "_LOD0")
+    mesh_path = os.path.join(import_assets_root, path.split(".")[0] + "_LOD" + str(lod))
 
     if os.path.exists(mesh_path + ".psk"):
         mesh_path += ".psk"
     if os.path.exists(mesh_path + ".pskx"):
         mesh_path += ".pskx"
 
-    if not pskimport(mesh_path, bReorientBones=reorient_bones, bImportmesh = import_mesh):
+    if not pskimport(mesh_path, bReorientBones=reorient_bones, bImportmesh = import_mesh, bScaleDown = import_settings.get("ScaleDown")):
         return None
 
     return bpy.context.active_object
@@ -172,7 +172,7 @@ def import_skel(path: str) -> bpy.types.Object:
     if os.path.exists(mesh_path + ".pskx"):
         mesh_path += ".pskx"
 
-    if not pskimport(mesh_path, bImportmesh=False):
+    if not pskimport(mesh_path, bImportmesh=False, bScaleDown = import_settings.get("ScaleDown")):
         return None
 
     return bpy.context.active_object
@@ -195,7 +195,7 @@ def import_anim(path: str):
     path = path[1:] if path.startswith("/") else path
     anim_path = os.path.join(import_assets_root, path.split(".")[0] + "_SEQ0" + ".psa")
 
-    return psaimport(anim_path)
+    return psaimport(anim_path, bUpdateTimelineRange=import_settings.get("UpdateTimeline"), bScaleDown = import_settings.get("ScaleDown"))
 
 def hash_code(num):
     return hex(abs(num))[2:]
@@ -415,6 +415,11 @@ def import_material(target_slot: bpy.types.MaterialSlot, material_data):
     shader_node.inputs["Subsurface"].default_value = import_settings.get("Subsurface")
 
     links.new(shader_node.outputs[0], output_node.inputs[0])
+    
+    if material_name == "M_VertexCrunch":
+        shader_node.inputs["Alpha"].default_value = 0.0
+        target_material.blend_method = "CLIP"
+        target_material.shadow_method = "CLIP"
 
     # gradient skins
     added_textures = []
@@ -586,7 +591,7 @@ def import_material(target_slot: bpy.types.MaterialSlot, material_data):
         node.hide = True
         node.location = location
 
-        if slot == 0:
+        if slot == "Diffuse":
             nodes.active = node
 
         if linear:
@@ -706,17 +711,13 @@ def merge_skeletons(parts) -> bpy.types.Armature:
     # Merge Skeletons
     for part in parts:
         slot = part.get("Part")
-        if slot is None:
-            slot = "" # fix stupid nonetype w/ the casefold
         skeleton = part.get("Armature")
         mesh = part.get("Mesh")
         socket = part.get("Socket")
-        if socket is None:
-            socket = "" # fix stupid nonetype w/ the casefold
         if slot == "Body":
             bpy.context.view_layer.objects.active = skeleton
 
-        if (slot in {"Hat", "MiscOrTail"} and socket not in [None, "Face"]) or (slot.casefold() == "face" and socket.casefold() == "hat"):
+        if slot in {"Hat", "MiscOrTail"} and socket not in ["Face", None]:
             constraint_parts.append(part)
         else:
             skeleton.select_set(True)
@@ -808,6 +809,8 @@ def apply_tasty_rig(master_skeleton: bpy.types.Armature):
     extra_group.color_set = 'THEME10'
     master_skeleton.pose.bone_groups[0].color_set = "THEME08"
     master_skeleton.pose.bone_groups[1].color_set = "THEME08"
+    
+    scale = 1 if import_settings.get("ScaleDown") else 100
 
     bpy.ops.object.mode_set(mode='EDIT')
     edit_bones = master_skeleton.data.edit_bones
@@ -824,11 +827,11 @@ def apply_tasty_rig(master_skeleton: bpy.types.Armature):
         ('foot_ik_r', edit_bones.get('foot_r').head, edit_bones.get('foot_r').tail, edit_bones.get('foot_r').roll),
         ('foot_ik_l', edit_bones.get('foot_l').head, edit_bones.get('foot_l').tail, edit_bones.get('foot_l').roll),
 
-        ('pole_elbow_r', edit_bones.get('lowerarm_r').head + Vector((0, 0.5, 0)), edit_bones.get('lowerarm_r').head + Vector((0, 0.5, -0.05)), 0),
-        ('pole_elbow_l', edit_bones.get('lowerarm_l').head + Vector((0, 0.5, 0)), edit_bones.get('lowerarm_l').head + Vector((0, 0.5, -0.05)), 0),
+        ('pole_elbow_r', edit_bones.get('lowerarm_r').head + Vector((0, 0.5, 0))*scale, edit_bones.get('lowerarm_r').head + Vector((0, 0.5, -0.05))*scale, 0),
+        ('pole_elbow_l', edit_bones.get('lowerarm_l').head + Vector((0, 0.5, 0))*scale, edit_bones.get('lowerarm_l').head + Vector((0, 0.5, -0.05))*scale, 0),
 
-        ('pole_knee_r', edit_bones.get('calf_r').head + Vector((0, -0.75, 0)), edit_bones.get('calf_r').head + Vector((0, -0.75, -0.05)), 0),
-        ('pole_knee_l', edit_bones.get('calf_l').head + Vector((0, -0.75, 0)), edit_bones.get('calf_l').head + Vector((0, -0.75, -0.05)), 0),
+        ('pole_knee_r', edit_bones.get('calf_r').head + Vector((0, -0.75, 0))*scale, edit_bones.get('calf_r').head + Vector((0, -0.75, -0.05))*scale, 0),
+        ('pole_knee_l', edit_bones.get('calf_l').head + Vector((0, -0.75, 0))*scale, edit_bones.get('calf_l').head + Vector((0, -0.75, -0.05))*scale, 0),
 
         ('index_control_l', edit_bones.get('index_01_l').head, edit_bones.get('index_01_l').tail, edit_bones.get('index_01_l').roll),
         ('middle_control_l', edit_bones.get('middle_01_l').head, edit_bones.get('middle_01_l').tail, edit_bones.get('middle_01_l').roll),
@@ -840,7 +843,7 @@ def apply_tasty_rig(master_skeleton: bpy.types.Armature):
         ('ring_control_r', edit_bones.get('ring_01_r').head, edit_bones.get('ring_01_r').tail, edit_bones.get('ring_01_r').roll),
         ('pinky_control_r', edit_bones.get('pinky_01_r').head, edit_bones.get('pinky_01_r').tail, edit_bones.get('pinky_01_r').roll),
 
-        ('eye_control_mid', edit_bones.get('head').head + Vector((0, -0.675, 0)), edit_bones.get('head').head + Vector((0, -0.7, 0)), 0),
+        ('eye_control_mid', edit_bones.get('head').head + Vector((0, -0.675, 0))*scale, edit_bones.get('head').head + Vector((0, -0.7, 0))*scale, 0),
     ]
 
     for new_bone in independent_rig_bones:
@@ -848,13 +851,13 @@ def apply_tasty_rig(master_skeleton: bpy.types.Armature):
         edit_bone.head = new_bone[1]
         edit_bone.tail = new_bone[2]
         edit_bone.roll = new_bone[3]
-        edit_bone.parent = edit_bones.get('tasty_root')
+        edit_bone.parent = ik_root_bone
 
     # name, head, tail, roll, parent
     # DO rely on other rig bones for creation
     dependent_rig_bones = [
-        ('eye_control_r', edit_bones.get('eye_control_mid').head + Vector((0.0325, 0, 0)), edit_bones.get('eye_control_mid').tail + Vector((0.0325, 0, 0)), 0, "eye_control_mid"),
-        ('eye_control_l', edit_bones.get('eye_control_mid').head + Vector((-0.0325, 0, 0)), edit_bones.get('eye_control_mid').tail + Vector((-0.0325, 0, 0)), 0, "eye_control_mid")
+        ('eye_control_r', edit_bones.get('eye_control_mid').head + Vector((0.0325, 0, 0))*scale, edit_bones.get('eye_control_mid').tail + Vector((0.0325, 0, 0))*scale, 0, "eye_control_mid"),
+        ('eye_control_l', edit_bones.get('eye_control_mid').head + Vector((-0.0325, 0, 0))*scale, edit_bones.get('eye_control_mid').tail + Vector((-0.0325, 0, 0))*scale, 0, "eye_control_mid")
     ]
 
     for new_bone in dependent_rig_bones:
@@ -932,9 +935,21 @@ def apply_tasty_rig(master_skeleton: bpy.types.Armature):
             old_head = eye_r.head + Vector((0,0.001,0)) # minor change to bypass zero-length bone deletion
             eye_r.tail = old_head
             eye_r.head = old_tail
+        elif eye_r.tail[0] == eye_r.head[0] and eye_r.tail[1] == eye_r.head[1] and eye_r.tail[2] != eye_r.head[2]:
+            eye_r.tail = eye_r.head + Vector((0,0.01,0))
+            old_tail = eye_r.tail + Vector((0,0.001,0))
+            old_head = eye_r.head + Vector((0,0.001,0)) # minor change to bypass zero-length bone deletion
+            eye_r.tail = old_head
+            eye_r.head = old_tail
 
     if (eye_l := edit_bones.get('L_eye')) or (eye_l := edit_bones.get('FACIAL_L_Eye')):
         if eye_l.tail[1] > eye_l.head[1]:
+            old_tail = eye_l.tail + Vector((0,0.001,0))
+            old_head = eye_l.head + Vector((0,0.001,0)) # minor change to bypass zero-length bone deletion
+            eye_l.tail = old_head
+            eye_l.head = old_tail
+        elif eye_l.tail[0] == eye_l.head[0] and eye_l.tail[1] == eye_l.head[1] and eye_l.tail[2] != eye_l.head[2]:
+            eye_l.tail = eye_l.head + Vector((0,0.01,0))
             old_tail = eye_l.tail + Vector((0,0.001,0))
             old_head = eye_l.head + Vector((0,0.001,0)) # minor change to bypass zero-length bone deletion
             eye_l.tail = old_head
@@ -947,35 +962,35 @@ def apply_tasty_rig(master_skeleton: bpy.types.Armature):
     # bone name, shape object name, scale, *rotation
     # bones that have custom shapes as bones instead of the normal sticks
     custom_shape_bones = [
-        ('root', 'RIG_Root', 0.75, (90, 0, 0)),
-        ('pelvis', 'RIG_Torso', 2.0, (0, -90, 0)),
-        ('spine_01', 'RIG_Hips', 2.1),
-        ('spine_02', 'RIG_Hips', 1.8),
-        ('spine_03', 'RIG_Hips', 1.6),
-        ('spine_04', 'RIG_Hips', 1.8),
-        ('spine_05', 'RIG_Hips', 1.2),
-        ('neck_01', 'RIG_Hips', 1.0),
-        ('neck_02', 'RIG_Hips', 1.0),
-        ('head', 'RIG_Hips', 1.6),
+        ('root', 'RIG_Root', 0.75*scale, (90, 0, 0)),
+        ('pelvis', 'RIG_Torso', 2.0*scale, (0, -90, 0)),
+        ('spine_01', 'RIG_Hips', 2.1*scale),
+        ('spine_02', 'RIG_Hips', 1.8*scale),
+        ('spine_03', 'RIG_Hips', 1.6*scale),
+        ('spine_04', 'RIG_Hips', 1.8*scale),
+        ('spine_05', 'RIG_Hips', 1.2*scale),
+        ('neck_01', 'RIG_Hips', 1.0*scale),
+        ('neck_02', 'RIG_Hips', 1.0*scale),
+        ('head', 'RIG_Hips', 1.6*scale),
 
         ('clavicle_r', 'RIG_Shoulder', 1.0),
         ('clavicle_l', 'RIG_Shoulder', 1.0),
 
-        ('upperarm_twist_01_r', 'RIG_Forearm', .13),
-        ('upperarm_twist_02_r', 'RIG_Forearm', .10),
-        ('lowerarm_twist_01_r', 'RIG_Forearm', .13),
-        ('lowerarm_twist_02_r', 'RIG_Forearm', .13),
-        ('upperarm_twist_01_l', 'RIG_Forearm', .13),
-        ('upperarm_twist_02_l', 'RIG_Forearm', .10),
-        ('lowerarm_twist_01_l', 'RIG_Forearm', .13),
-        ('lowerarm_twist_02_l', 'RIG_Forearm', .13),
+        ('upperarm_twist_01_r', 'RIG_Forearm', .13*scale),
+        ('upperarm_twist_02_r', 'RIG_Forearm', .10*scale),
+        ('lowerarm_twist_01_r', 'RIG_Forearm', .13*scale),
+        ('lowerarm_twist_02_r', 'RIG_Forearm', .13*scale),
+        ('upperarm_twist_01_l', 'RIG_Forearm', .13*scale),
+        ('upperarm_twist_02_l', 'RIG_Forearm', .10*scale),
+        ('lowerarm_twist_01_l', 'RIG_Forearm', .13*scale),
+        ('lowerarm_twist_02_l', 'RIG_Forearm', .13*scale),
 
-        ('thigh_twist_01_r', 'RIG_Tweak', .15),
-        ('calf_twist_01_r', 'RIG_Tweak', .13),
-        ('calf_twist_02_r', 'RIG_Tweak', .2),
-        ('thigh_twist_01_l', 'RIG_Tweak', .15),
-        ('calf_twist_01_l', 'RIG_Tweak', .13),
-        ('calf_twist_02_l', 'RIG_Tweak', .2),
+        ('thigh_twist_01_r', 'RIG_Tweak', .15*scale),
+        ('calf_twist_01_r', 'RIG_Tweak', .13*scale),
+        ('calf_twist_02_r', 'RIG_Tweak', .2*scale),
+        ('thigh_twist_01_l', 'RIG_Tweak', .15*scale),
+        ('calf_twist_01_l', 'RIG_Tweak', .13*scale),
+        ('calf_twist_02_l', 'RIG_Tweak', .2*scale),
 
         ('hand_ik_r', 'RIG_Hand', 2.6),
         ('hand_ik_l', 'RIG_Hand', 2.6),
@@ -1040,18 +1055,18 @@ def apply_tasty_rig(master_skeleton: bpy.types.Armature):
         ('ring_control_r', 'RIG_FingerRotR', 1.0),
         ('pinky_control_r', 'RIG_FingerRotR', 1.0),
 
-        ('eye_control_mid', 'RIG_EyeTrackMid', 0.75),
-        ('eye_control_r', 'RIG_EyeTrackInd', 0.75),
-        ('eye_control_l', 'RIG_EyeTrackInd', 0.75),
+        ('eye_control_mid', 'RIG_EyeTrackMid', 0.75*scale),
+        ('eye_control_r', 'RIG_EyeTrackInd', 0.75*scale),
+        ('eye_control_l', 'RIG_EyeTrackInd', 0.75*scale),
     ]
 
     for custom_shape_bone_data in custom_shape_bones:
-        name, shape, scale, *extra = custom_shape_bone_data
+        name, shape, bone_scale, *extra = custom_shape_bone_data
         if not (custom_shape_bone := pose_bones.get(name)):
             continue
 
         custom_shape_bone.custom_shape = bpy.data.objects.get(shape)
-        custom_shape_bone.custom_shape_scale_xyz = scale, scale, scale
+        custom_shape_bone.custom_shape_scale_xyz = bone_scale, bone_scale, bone_scale
 
         if len(extra) > 0 and (rot := extra[0]):
             custom_shape_bone.custom_shape_rotation_euler = [radians(rot[0]), radians(rot[1]), radians(rot[2])]
@@ -1081,7 +1096,7 @@ def apply_tasty_rig(master_skeleton: bpy.types.Armature):
             pose_bone.bone_group = dyn_group
 
         if 'twist_' in pose_bone.name:
-            pose_bone.custom_shape_scale_xyz = 0.1, 0.1, 0.1
+            pose_bone.custom_shape_scale_xyz = 0.1*scale, 0.1*scale, 0.1*scale
             pose_bone.use_custom_shape_bone_size = False
 
         if any(["eyelid", "eye_lid_"], lambda x: x.casefold() in pose_bone.name.casefold()):
@@ -1213,6 +1228,13 @@ def apply_tasty_rig(master_skeleton: bpy.types.Armature):
 
         ('dfrm_upperarm_r', 'upperarm_r', 1.0),
         ('dfrm_upperarm_l', 'upperarm_l', 1.0),
+        ('dfrm_lowerarm_r', 'lowerarm_r', 1.0),
+        ('dfrm_lowerarm_l', 'lowerarm_l', 1.0),
+
+        ('dfrm_thigh_r', 'thigh_r', 1.0),
+        ('dfrm_thigh_l', 'thigh_l', 1.0),
+        ('dfrm_calf_r', 'calf_r', 1.0),
+        ('dfrm_calf_l', 'calf_l', 1.0),
     ]
 
     for bone_data in copy_rotation_bones:
@@ -1337,13 +1359,17 @@ def apply_tasty_rig(master_skeleton: bpy.types.Armature):
             bone.layers[index] = True
 
 
-def constraint_object(child: bpy.types.Object, parent: bpy.types.Object, bone: str, rot=[radians(0), radians(90), radians(0)]):
+def constraint_object(child: bpy.types.Object, parent: bpy.types.Object, bone: str, rot=[radians(0), radians(90), radians(0)], inherit_rot=True):
     constraint = child.constraints.new('CHILD_OF')
     constraint.target = parent
     constraint.subtarget = bone
     child.rotation_mode = 'XYZ'
-    child.rotation_euler = rot
-    constraint.inverse_matrix = Matrix.Identity(4)
+    #child.rotation_euler = rot
+    constraint.inverse_matrix = constraint.target.matrix_world.inverted()
+    if not inherit_rot:
+        constraint.use_rotation_x = False
+        constraint.use_rotation_y = False
+        constraint.use_rotation_z = False
 
 def mesh_from_armature(armature) -> bpy.types.Mesh:
     return armature.children[0]  # only used with psk, mesh is always first child
@@ -1404,6 +1430,16 @@ def make_color(data):
 def make_vector(data):
     return Vector((data.get("X"), data.get("Y"), data.get("Z")))
 
+def create_collection(name):
+    if name in bpy.context.view_layer.layer_collection.children:
+        bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children.get(name)
+        return
+    bpy.ops.object.select_all(action='DESELECT')
+    
+    new_collection = bpy.data.collections.new(name)
+    bpy.context.scene.collection.children.link(new_collection)
+    bpy.context.view_layer.active_layer_collection = bpy.context.view_layer.layer_collection.children.get(new_collection.name)
+
 def import_response(response):
     append_data()
     global import_assets_root
@@ -1428,15 +1464,22 @@ def import_response(response):
     
         Log.information(f"Received Import for {import_type}: {name}")
         print(json.dumps(import_data))
-    
-        if import_type == "Dance":
-            animation = import_data.get("Animation")
-            props = import_data.get("Props")
+        
+        def import_animation_data(anim_data, override_skel = None):
+            if anim_data is None:
+                return
+            animation = anim_data.get("Animation")
+            props = anim_data.get("Props")
+            
+            if override_skel is not None:
+                bpy.context.view_layer.objects.active = override_skel
+                override_skel.select_set(True)
+            
             active_skeleton = armature_from_selection()
-    
+
             if not import_anim(animation):
                 message_box("An armature must be selected for the Emote to import onto.", "Failed to Import Emote", "ERROR")
-                continue
+                return 
 
             # remove face keyframes
             bpy.ops.object.mode_set(mode='POSE')
@@ -1455,22 +1498,22 @@ def import_response(response):
                 for fcurve in dispose_curves:
                     active_skeleton.animation_data.action.fcurves.remove(fcurve)
             bpy.ops.object.mode_set(mode='OBJECT')
-            
+
             if len(props) == 0:
-                continue
+                return 
 
             existing_prop_skel = first(active_skeleton.children, lambda x: x.name == "Prop_Skeleton")
             if existing_prop_skel:
                 bpy.data.objects.remove(existing_prop_skel, do_unlink=True)
-    
-            master_skeleton = import_skel(import_data.get("Skeleton"))
+
+            master_skeleton = import_skel(anim_data.get("Skeleton"))
             master_skeleton.name = "Prop_Skeleton"
             master_skeleton.parent = active_skeleton
-    
+
             bpy.context.view_layer.objects.active = master_skeleton
             import_anim(animation)
             master_skeleton.hide_set(True)
-                      
+
             for propData in props:
                 prop = propData.get("Prop")
                 socket_name = propData.get("SocketName")
@@ -1479,32 +1522,34 @@ def import_response(response):
                     "LeftHand": "weapon_l",
                     "AttachSocket": "attach"
                 }
-    
+
                 if socket_name in socket_remaps.keys():
                     socket_name = socket_remaps.get(socket_name)
-    
-                if (imported_item := import_mesh(prop.get("MeshPath"))) is None:
-                        continue
-    
+                    
+                num_lods = prop.get("NumLods")
+
+                if (imported_item := import_mesh(prop.get("MeshPath"), lod=min(num_lods-1, import_settings.get("LevelOfDetail")))) is None:
+                    continue
+
                 bpy.context.view_layer.objects.active = imported_item
-    
+
                 if animation := propData.get("Animation"):
                     import_anim(animation)
-    
+
                 imported_mesh = imported_item
                 if imported_item.type == 'ARMATURE':
                     imported_mesh = mesh_from_armature(imported_item)
-    
+
                 for material in prop.get("Materials"):
                     index = material.get("SlotIndex")
                     import_material(imported_mesh.material_slots.values()[index], material)
-    
+
                 if location_offset := propData.get("LocationOffset"):
                     imported_item.location += make_vector(location_offset)*0.01
-    
+
                 if scale := propData.get("Scale"):
                     imported_item.scale = make_vector(scale)
-    
+
                 rotation = [0,0,0]
                 if rotation_offset := propData.get("RotationOffset"):
                     rotation[0] += radians(rotation_offset.get("Roll"))
@@ -1512,7 +1557,13 @@ def import_response(response):
                     rotation[2] += -radians(rotation_offset.get("Yaw"))
                 constraint_object(imported_item, master_skeleton, socket_name, rotation)
     
+        if import_type == "Dance":
+            anim_data = import_data.get("AnimData")
+            import_animation_data(anim_data)
+    
         else:
+            if import_settings.get("IntoCollection"):
+                create_collection(name)
             imported_parts = []
             style_meshes = import_data.get("StyleMeshes")
             style_material_params = import_data.get("StyleMaterialParams")
@@ -1520,14 +1571,14 @@ def import_response(response):
             def import_parts(parts):
                 for part in parts:
                     part_type = part.get("Part")
-                    if any(imported_parts, lambda x: False if x is None else x.get("Part") == part_type) and import_type == "Outfit":
+                    if any(imported_parts, lambda x: False if x is None else x.get("Part") == part_type) and import_type in ["Outfit", "Backpack"]:
                         continue
     
-                    target_mesh = part.get("MeshPath")
-                    if found_mesh := first(style_meshes, lambda x: x.get("MeshToSwap") == target_mesh):
-                        target_mesh = found_mesh.get("MeshToSwap")
-                    
-                    if (imported_part := import_mesh(target_mesh, reorient_bones=import_settings.get("ReorientBones"))) is None:
+                    if found_mesh := first(style_meshes, lambda x: x.get("MeshToSwap") == part.get("MeshPath")):
+                        part = found_mesh
+                        
+                    num_lods = part.get("NumLods")
+                    if (imported_part := import_mesh(part.get("MeshPath"), reorient_bones=import_settings.get("ReorientBones"), lod=min(num_lods-1, import_settings.get("LevelOfDetail")))) is None:
                         continue
 
                     imported_part.location += make_vector(part.get("Offset"))*0.01
@@ -1577,7 +1628,8 @@ def import_response(response):
             for imported_part in imported_parts:
                 mesh = imported_part.get("Mesh")
                 for style_material in import_data.get("StyleMaterials"):
-                    if slot := mesh.material_slots.get(style_material.get("MaterialNameToSwap")):
+                    slots = where(mesh.material_slots, lambda x: x.name == style_material.get("MaterialNameToSwap"))
+                    for slot in slots:
                         import_material(slot, style_material)
     
             if import_settings.get("MergeSkeletons") and import_type == "Outfit":
@@ -1588,13 +1640,14 @@ def import_response(response):
                     corrective_smooth = master_mesh.modifiers.new(name="Corrective Smooth", type='CORRECTIVE_SMOOTH')
                     corrective_smooth.use_pin_boundary = True
 
-            if RigType(import_settings.get("RigType")) == RigType.TASTY:
+                rig_type = RigType(import_settings.get("RigType"))
+                if rig_type == RigType.DEFAULT and import_settings.get("LobbyPoses") and (sequence_data := import_data.get("LinkedSequence")):
+                    import_animation_data(sequence_data, override_skel=master_skeleton)
+                
+                if rig_type == RigType.TASTY:
                     apply_tasty_rig(master_skeleton)
                     
-                
-            
-            
-        
+                    
             bpy.ops.object.select_all(action='DESELECT')
     
 def message_box(message = "", title = "Message Box", icon = 'INFO'):

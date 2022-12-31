@@ -20,7 +20,7 @@ public class SettingsViewModel : ObservableObject
             IsRestartRequired = true;
         }
     }
-    
+
     public string ArchivePath
     {
         get => AppSettings.Current.ArchivePath;
@@ -31,7 +31,7 @@ public class SettingsViewModel : ObservableObject
             IsRestartRequired = true;
         }
     }
-    
+
     public ELanguage Language
     {
         get => AppSettings.Current.Language;
@@ -62,7 +62,7 @@ public class SettingsViewModel : ObservableObject
             OnPropertyChanged();
         }
     }
-    
+
     public bool BundleDownloaderEnabled
     {
         get => AppSettings.Current.BundleDownloaderEnabled;
@@ -72,7 +72,7 @@ public class SettingsViewModel : ObservableObject
             OnPropertyChanged();
         }
     }
-    
+
     public EUpdateMode UpdateMode
     {
         get => AppSettings.Current.UpdateMode;
@@ -82,5 +82,16 @@ public class SettingsViewModel : ObservableObject
             OnPropertyChanged();
         }
     }
-    
+
+    public bool LightMode
+    {
+        get => AppSettings.Current.LightMode;
+        set
+        {
+            AppSettings.Current.LightMode = value;
+            OnPropertyChanged();
+            IsRestartRequired = true;
+            OnPropertyChanged(nameof(IsRestartRequired));
+        }
+    }
 }

@@ -1,11 +1,30 @@
 ﻿using CommunityToolkit.Mvvm.ComponentModel;
 using FortnitePorting.AppUtils;
-using FortnitePorting.Exports.Blender;
 
 namespace FortnitePorting.ViewModels;
 
 public class ImportSettingsViewModel : ObservableObject
 {
+    public bool BlenderIntoCollection
+    {
+        get => AppSettings.Current.BlenderExportSettings.IntoCollection;
+        set
+        {
+            AppSettings.Current.BlenderExportSettings.IntoCollection = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool BlenderScaleDown
+    {
+        get => AppSettings.Current.BlenderExportSettings.ScaleDown;
+        set
+        {
+            AppSettings.Current.BlenderExportSettings.ScaleDown = value;
+            OnPropertyChanged();
+        }
+    }
+
     public bool CanChangeRigOptions => BlenderRigType == ERigType.Default;
     public ERigType BlenderRigType
     {
@@ -17,7 +36,7 @@ public class ImportSettingsViewModel : ObservableObject
             OnPropertyChanged(nameof(CanChangeRigOptions));
         }
     }
-    
+
     public bool BlenderMergeSkeletons
     {
         get => AppSettings.Current.BlenderExportSettings.MergeSkeletons;
@@ -27,7 +46,7 @@ public class ImportSettingsViewModel : ObservableObject
             OnPropertyChanged();
         }
     }
-    
+
     public bool BlenderReorientBones
     {
         get => AppSettings.Current.BlenderExportSettings.ReorientBones;
@@ -37,7 +56,27 @@ public class ImportSettingsViewModel : ObservableObject
             OnPropertyChanged();
         }
     }
-    
+
+    public bool BlenderUpdateTimeline
+    {
+        get => AppSettings.Current.BlenderExportSettings.UpdateTimeline;
+        set
+        {
+            AppSettings.Current.BlenderExportSettings.UpdateTimeline = value;
+            OnPropertyChanged();
+        }
+    }
+
+    public bool BlenderLobbyPoses
+    {
+        get => AppSettings.Current.BlenderExportSettings.LobbyPoses;
+        set
+        {
+            AppSettings.Current.BlenderExportSettings.LobbyPoses = value;
+            OnPropertyChanged();
+        }
+    }
+
     public bool BlenderQuadTopo
     {
         get => AppSettings.Current.BlenderExportSettings.QuadTopo;
@@ -47,7 +86,17 @@ public class ImportSettingsViewModel : ObservableObject
             OnPropertyChanged();
         }
     }
-    
+
+    public int BlenderLevelOfDetail
+    {
+        get => AppSettings.Current.BlenderExportSettings.LevelOfDetail;
+        set
+        {
+            AppSettings.Current.BlenderExportSettings.LevelOfDetail = value;
+            OnPropertyChanged();
+        }
+    }
+
     public bool BlenderPoseFixes
     {
         get => AppSettings.Current.BlenderExportSettings.PoseFixes;
@@ -57,7 +106,7 @@ public class ImportSettingsViewModel : ObservableObject
             OnPropertyChanged();
         }
     }
-    
+
     public bool BlenderImportMaterials
     {
         get => AppSettings.Current.BlenderExportSettings.ImportMaterials;
@@ -67,7 +116,7 @@ public class ImportSettingsViewModel : ObservableObject
             OnPropertyChanged();
         }
     }
-    
+
     public double BlenderAmbientOcclusion
     {
         get => AppSettings.Current.BlenderExportSettings.AmbientOcclusion;
@@ -77,7 +126,7 @@ public class ImportSettingsViewModel : ObservableObject
             OnPropertyChanged();
         }
     }
-    
+
     public double BlenderCavity
     {
         get => AppSettings.Current.BlenderExportSettings.Cavity;
@@ -87,7 +136,7 @@ public class ImportSettingsViewModel : ObservableObject
             OnPropertyChanged();
         }
     }
-    
+
     public double BlenderSubsurf
     {
         get => AppSettings.Current.BlenderExportSettings.Subsurface;
